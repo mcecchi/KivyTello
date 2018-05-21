@@ -1,6 +1,6 @@
 from kivy.app import App
 from kivy.core.window import Window
-from kivy.garden.joystick import Joystick
+from joystick import Joystick
 from kivy.uix.boxlayout import BoxLayout
 from tellopy import Tello
 
