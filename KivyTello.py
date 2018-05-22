@@ -129,7 +129,6 @@ class KivyTelloApp(App):
 
     def build(self):
         return KivyTelloRoot(drone=self.drone)
-        pass
 
 
 if __name__ == '__main__':
