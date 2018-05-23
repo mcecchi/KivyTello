@@ -1,4 +1,6 @@
 # KivyTello
+![Screenshot](KiviTello.png?raw=true "Screenshot")
+
 Kivy app to control your Ryze Tello
 Very simple python app to drive your Ryze Tello from desktop or smartphone.
 It uses Kivy (https://kivy.org) to create a basic platform independent GUI.
