@@ -16,14 +16,16 @@ all volunteers are welcome!
 
 I used [Kivy Launcher](https://play.google.com/store/apps/details?id=org.kivy.pygame&hl=en).
 
-Once the Kivy launcher is installed, you can put your Kivy
-applications in the Kivy directory in your external storage directory
+Once the Kivy launcher is installed, you can put your KivyTello
+folder in the Kivy directory in your external storage directory
 (often available at `/sdcard` even in devices where this memory
 is internal), e.g. :
 
-    /sdcard/kivy/<yourapplication>
+    /sdcard/kivy/KivyTello
 
 **KivyTello waits 60 seconds before exiting if you don't connect Tello in the meantime.**
+
+KiviTello can also be packaged for Android (see [Create a package for Android](https://kivy.org/docs/guide/packaging-android.html#)) and I'll do it as soon as possible.
 
 ## Contributing
 
