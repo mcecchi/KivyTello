@@ -23,10 +23,6 @@ class KivyTelloRoot(BoxLayout):
         super(KivyTelloRoot, self).__init__(**kwargs)
         self.stick_data = [0.0] * 4
         Window.allow_vkeyboard = False
-        self._keyboard = Window.request_keyboard(self.keyboard_closed,
-                                                 self,
-                                                 'text')
-        self._keyboard.bind(on_key_down=self.on_key_down)
         self.ids.pad_left.ids.stick.bind(pad=self.on_pad_left)
         self.ids.pad_right.ids.stick.bind(pad=self.on_pad_right)
         self.ids.takeoff.bind(state=self.on_state_takeoff)
@@ -40,36 +36,6 @@ class KivyTelloRoot(BoxLayout):
         drone = sender
         if event is self.drone.EVENT_FLIGHT_DATA:
             print(data)
-
-    def keyboard_closed(self):
-        self._keyboard.unbind(on_key_down=self._on_keyboard_down)
-        self._keyboard = None
-
-    def on_key_down(self, keyboard, keycode, text, modifiers):
-        print(keycode[1])
-        if keycode[1] == 'escape':
-            self.stop()
-            return True
-        elif keycode[1] == 'spacebar':
-            if self.ids.takeoff.state == 'normal':
-                self.ids.takeoff.state = 'down'
-            else:
-                self.ids.takeoff.state = 'normal'
-            return True
-        elif keycode[1] == '1':
-            if self.ids.rotcw.state == 'normal':
-                self.ids.rotcw.state = 'down'
-            else:
-                self.ids.rotcw.state = 'normal'
-            return True
-        elif keycode[1] == '2':
-            if self.ids.rotccw.state == 'normal':
-                self.ids.rotccw.state = 'down'
-            else:
-                self.ids.rotccw.state = 'normal'
-            return True
-        else:
-            return False
 
     def on_state_takeoff(self, instance, value):
         if value == 'down':
@@ -130,8 +96,11 @@ class KivyTelloApp(App):
     def build(self):
         return KivyTelloRoot(drone=self.drone)
 
+    def on_pause(self):
+        return True
 
-if __name__ == '__main__':
+
+if __name__ in ('__main__', '__android__'):
     drone = Tello()
     try:
         drone.connect()

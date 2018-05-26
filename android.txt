@@ -1,0 +1,3 @@
+title=KivyTello
+author=Mauro Cecchi
+orientation=landscape

@@ -4,12 +4,11 @@
 
 <JoystickPanel@BoxLayout>
     orientation: 'vertical'
-    pos_hint: {'top': 0.9}
+    Label:
+        id: label
     DragableJoystick:
         id: stick
         sticky: False
-    Label:
-        id: label
 
 <KivyTelloRoot>:
     orientation: 'vertical'
