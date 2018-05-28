@@ -2,6 +2,7 @@ from kivy.app import App
 from kivy.core.window import Window
 from joystick import Joystick
 from kivy.uix.boxlayout import BoxLayout
+from kivy.core.window import Window
 from tellopy import Tello
 
 IDX_ROLL = 0
@@ -99,6 +100,9 @@ class KivyTelloApp(App):
     def on_pause(self):
         return True
 
+    def on_stop(self):
+        Window.close()
+
 
 if __name__ in ('__main__', '__android__'):
     drone = Tello()
@@ -109,4 +113,5 @@ if __name__ in ('__main__', '__android__'):
     except Exception as ex:
         print(ex)
         drone.quit()
-        exit(1)
+        Window.close()
+        #exit(1)
