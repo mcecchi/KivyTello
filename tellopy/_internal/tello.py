@@ -3,17 +3,16 @@ import socket
 import time
 import datetime
 import sys
-import louie
-from louie import dispatcher
 
-import crc
-import logger
-import event
-import state
-import error
-import video_stream
-from utils import *
-from protocol import *
+from . import crc
+from . import logger
+from . import event
+from . import state
+from . import error
+from . import video_stream
+from . utils import *
+from . protocol import *
+from . import dispatcher
 
 log = logger.Logger('Tello')
 
@@ -26,6 +25,7 @@ class Tello(object):
     EVENT_LOG = event.Event('log')
     EVENT_TIME = event.Event('time')
     EVENT_VIDEO_FRAME = event.Event('video frame')
+    EVENT_VIDEO_DATA = event.Event('video data')
     EVENT_DISCONNECTED = event.Event('disconnected')
     # internal events
     __EVENT_CONN_REQ = event.Event('conn_req')
@@ -70,6 +70,7 @@ class Tello(object):
         self.video_enabled = False
         self.prev_video_data_time = None
         self.video_data_size = 0
+        self.video_data_loss = 0
         self.log = log
         self.exposure = 0
         self.video_encoder_rate = 4
@@ -80,7 +81,7 @@ class Tello(object):
         self.sock.bind(('', self.port))
         self.sock.settimeout(2.0)
 
-        dispatcher.connect(self.__state_machine, louie.signal.All, sender=self)
+        dispatcher.connect(self.__state_machine, dispatcher.signal.All)
         threading.Thread(target=self.__recv_thread).start()
         threading.Thread(target=self.__video_thread).start()
 
@@ -123,24 +124,24 @@ class Tello(object):
 
     def __send_conn_req(self):
         port = 9617
-        port0 = ((port/1000) % 10) << 4 | ((port/100) % 10)
-        port1 = ((port/10) % 10) << 4 | ((port/1) % 10)
+        port0 = (int(port/1000) % 10) << 4 | (int(port/100) % 10)
+        port1 = (int(port/10) % 10) << 4 | (int(port/1) % 10)
         buf = 'conn_req:%c%c' % (chr(port0), chr(port1))
         log.info('send connection request (cmd="%s%02x%02x")' % (str(buf[:-2]), port0, port1))
         return self.send_packet(Packet(buf))
 
     def subscribe(self, signal, handler):
         """Subscribe a event such as EVENT_CONNECTED, EVENT_FLIGHT_DATA, EVENT_VIDEO_FRAME and so on."""
-        dispatcher.connect(handler, signal, sender=self)
+        dispatcher.connect(handler, signal)
 
     def __publish(self, event, data=None, **args):
-        args.update({'event': event, 'data': data})
+        args.update({'data': data})
         if 'signal' in args:
             del args['signal']
         if 'sender' in args:
             del args['sender']
         log.debug('publish signal=%s, args=%s' % (event, args))
-        dispatcher.send(signal=event, sender=self, **args)
+        dispatcher.send(event, sender=self, **args)
 
     def takeoff(self):
         """Takeoff tells the drones to liftoff and start flying."""
@@ -351,7 +352,7 @@ class Tello(object):
         if isinstance(data, str):
             data = bytearray([x for x in data])
 
-        if str(data[0:9]) == 'conn_ack:':
+        if str(data[0:9]) == 'conn_ack:' or data[0:9] == b'conn_ack:':
             log.info('connected. (port=%2x%2x)' % (data[9], data[10]))
             log.debug('    %s' % byte_to_hexstring(data))
             if self.video_enabled:
@@ -459,11 +460,11 @@ class Tello(object):
                 data, server = sock.recvfrom(self.udpsize)
                 log.debug("recv: %s" % byte_to_hexstring(data))
                 self.__process_packet(data)
-            except socket.timeout, ex:
+            except socket.timeout as ex:
                 if self.state == self.STATE_CONNECTED:
                     log.error('recv: timeout')
                 self.__publish(event=self.__EVENT_TIMEOUT)
-            except Exception, ex:
+            except Exception as ex:
                 log.error('recv: %s' % str(ex))
                 show_exception(ex)
 
@@ -476,7 +477,13 @@ class Tello(object):
         port = 6038
         sock.bind(('', port))
         sock.settimeout(5.0)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 512 * 1024)
+        log.info('video receive buffer size = %d' %
+                 sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF))
 
+        prev_header = None
+        prev_ts = None
+        history = []
         while self.state != self.STATE_QUIT:
             if not self.video_enabled:
                 time.sleep(1.0)
@@ -485,16 +492,63 @@ class Tello(object):
                 data, server = sock.recvfrom(self.udpsize)
                 now = datetime.datetime.now()
                 log.debug("video recv: %s %d bytes" % (byte_to_hexstring(data[0:2]), len(data)))
+                show_history = False
+
+                # check video data loss
+                header = byte(data[0])
+                if (prev_header is not None and
+                    header != prev_header and
+                    header != ((prev_header + 1) & 0xff)):
+                    loss = header - prev_header
+                    if loss < 0:
+                        loss = loss + 256
+                    self.video_data_loss += loss
+                    #
+                    # enable this line to see packet history
+                    # show_history = True
+                    #
+                prev_header = header
+
+                # check video data interval
+                if prev_ts is not None and 0.1 < (now - prev_ts).total_seconds():
+                    log.info('video recv: %d bytes %02x%02x +%03d' %
+                             (len(data), byte(data[0]), byte(data[1]),
+                              (now - prev_ts).total_seconds() * 1000))
+                prev_ts = now
+
+                # save video data history
+                history.append([now, len(data), byte(data[0])*256 + byte(data[1])])
+                if 100 < len(history):
+                    history = history[1:]
+
+                # show video data history
+                if show_history:
+                    prev_ts = history[0][0]
+                    for i in range(1, len(history)):
+                        [ ts, sz, sn ] = history[i]
+                        print('    %02d:%02d:%02d.%03d %4d bytes %04x +%03d%s' %
+                              (ts.hour, ts.minute, ts.second, ts.microsecond/1000,
+                               sz, sn, (ts - prev_ts).total_seconds()*1000,
+                               (' *' if i == len(history) - 1 else '')))
+                        prev_ts = ts
+                    history = history[-1:]
+
+                # deliver video frame to subscribers
                 self.__publish(event=self.EVENT_VIDEO_FRAME, data=data[2:])
+                self.__publish(event=self.EVENT_VIDEO_DATA, data=data)
+
+                # show video frame statistics
                 if self.prev_video_data_time is None:
                     self.prev_video_data_time = now
                 self.video_data_size += len(data)
                 dur = (now - self.prev_video_data_time).total_seconds()
                 if 2.0 < dur:
-                    log.info('video data %d bytes %5.1fKB/sec' %
-                             (self.video_data_size, self.video_data_size / dur / 1024))
+                    log.info(('video data %d bytes %5.1fKB/sec' %
+                              (self.video_data_size, self.video_data_size / dur / 1024)) +
+                             ((' loss=%d' % self.video_data_loss) if self.video_data_loss != 0 else ''))
                     self.video_data_size = 0
                     self.prev_video_data_time = now
+                    self.video_data_loss = 0
 
                     # keep sending start video command
                     self.__send_start_video()
