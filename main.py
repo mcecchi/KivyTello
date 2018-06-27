@@ -32,34 +32,40 @@ class KivyTelloRoot(BoxLayout):
         self.ids.quit.bind(on_press=lambda x: self.stop())
         self.drone = drone
         self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA, self.handler)
+        self.drone.start_video()
+        self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.handler)
 
     def handler(self, event, sender, data, **args):
         drone = sender
         if event is self.drone.EVENT_FLIGHT_DATA:
             print(data)
+        elif event is self.drone.EVENT_VIDEO_FRAME:
+            pass
+        else:
+            print(('event="%s" data=%s' % (event.getname(), str(data))))
 
     def on_state_takeoff(self, instance, value):
         if value == 'down':
-            print 'take off'
+            print('take off')
             self.drone.takeoff()
         else:
-            print 'land'
+            print('land')
             self.drone.land()
 
     def on_state_rotcw(self, instance, value):
         if value == 'down':
-            print 'start cw'
+            print('start cw')
             self.drone.clockwise(50)
         else:
-            print 'stop cw'
+            print('stop cw')
             self.drone.clockwise(0)
 
     def on_state_rotccw(self, instance, value):
         if value == 'down':
-            print 'start ccw'
+            print('start ccw')
             self.drone.counter_clockwise(50)
         else:
-            print 'stop ccw'
+            print('stop ccw')
             self.drone.counter_clockwise(0)
 
     def on_pad_left(self, instance, value):
@@ -114,4 +120,4 @@ if __name__ in ('__main__', '__android__'):
         print(ex)
         drone.quit()
         Window.close()
-        #exit(1)
+        # exit(1)
