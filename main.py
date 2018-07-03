@@ -1,14 +1,74 @@
+import av
+import cv2
+import numpy
+import time
 from kivy.app import App
 from kivy.core.window import Window
 from joystick import Joystick
-from kivy.uix.boxlayout import BoxLayout
-from kivy.core.window import Window
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.behaviors import CoverBehavior
+from kivy.uix.video import Video
 from tellopy import Tello
+from threading import Thread
+from flask import Response
+from perfume import route, Perfume
+
+
+class FlaskApp(Perfume):
+    def __init__(self, drone=None, **kwargs):
+        super(FlaskApp, self).__init__(**kwargs)
+        self.drone = drone
+
+    @route('/video_feed')
+    def video_feed(self):
+        def generate():
+            container = av.open(self.drone.get_video_stream())
+            # skip first 300 frames
+            frame_skip = 300
+            while True:
+                for frame in container.decode(video=0):
+                    # print('Getting frame')
+                    if 0 < frame_skip:
+                        frame_skip = frame_skip - 1
+                        continue
+                    start_time = time.time()
+                    image = cv2.cvtColor(
+                        numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
+                    ret, jpeg = cv2.imencode('.jpg', image)
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' +
+                           jpeg.tobytes() +
+                           b'\r\n\r\n')
+                    frame_skip = int((time.time() -
+                                     start_time)/frame.time_base)
+
+        return Response(generate(),
+                        mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+def start_flask_app(drone=None):
+    print("Starting Flask app...")
+    FlaskApp(drone=drone).run(port=5000, debug=True, use_reloader=False)
+
 
 IDX_ROLL = 0
 IDX_PITCH = 1
 IDX_THR = 2
 IDX_YAW = 3
+
+
+class CoverVideo(CoverBehavior, Video):
+    def _on_video_frame(self, *largs):
+        video = self._video
+        if not video:
+            return
+        texture = video.texture
+        self.reference_size = texture.size
+        self.calculate_cover()
+        self.duration = video.duration
+        self.position = video.position
+        self.texture = texture
+        self.canvas.ask_update()
 
 
 class DragableJoystick(Joystick):
@@ -18,7 +78,7 @@ class DragableJoystick(Joystick):
             return super(DragableJoystick, self).on_touch_down(touch)
 
 
-class KivyTelloRoot(BoxLayout):
+class KivyTelloRoot(FloatLayout):
 
     def __init__(self, drone=None, **kwargs):
         super(KivyTelloRoot, self).__init__(**kwargs)
@@ -31,18 +91,18 @@ class KivyTelloRoot(BoxLayout):
         self.ids.rotccw.bind(state=self.on_state_rotccw)
         self.ids.quit.bind(on_press=lambda x: self.stop())
         self.drone = drone
-        self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA, self.handler)
-        self.drone.start_video()
-        self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.handler)
+        # self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA, self.handler)
+        # self.drone.start_video()
+        # self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.handler)
 
     def handler(self, event, sender, data, **args):
         drone = sender
         if event is self.drone.EVENT_FLIGHT_DATA:
             print(data)
-        elif event is self.drone.EVENT_VIDEO_FRAME:
-            pass
-        else:
-            print(('event="%s" data=%s' % (event.getname(), str(data))))
+        # elif event is self.drone.EVENT_VIDEO_FRAME:
+            # pass
+        # else:
+            # print(('event="%s" data=%s' % (event.getname(), str(data))))
 
     def on_state_takeoff(self, instance, value):
         if value == 'down':
@@ -115,6 +175,9 @@ if __name__ in ('__main__', '__android__'):
     try:
         drone.connect()
         drone.wait_for_connection(60.0)
+        t = Thread(target=start_flask_app, args=(drone,))
+        t.setDaemon(True)
+        t.start()
         KivyTelloApp(drone=drone).run()
     except Exception as ex:
         print(ex)

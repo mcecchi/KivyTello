@@ -2,36 +2,45 @@
 
 <DragableJoystick>
 
+<CoverVideo>
+
 <JoystickPanel@BoxLayout>
     orientation: 'vertical'
-    Label:
-        id: label
+    pos_hint: {'top': 0.9}
     DragableJoystick:
         id: stick
         sticky: False
+    Label:
+        id: label
 
 <KivyTelloRoot>:
-    orientation: 'vertical'
+    CoverVideo:
+        source: 'http://localhost:5000/video_feed'
+        state: 'play'
+        #allow_stretch: True
+        options: {'eos': 'loop'}
     BoxLayout:
-        size_hint: 1, 0.2
-        orientation: 'horizontal'
-        Button:
-            id: quit
-            text: 'QUIT'
-        ToggleButton:
-            id: takeoff
-            text: 'TAKEOFF' if self.state == 'normal' else 'LAND'
-        ToggleButton:
-            id: rotcw
-            text: 'START CW' if self.state == 'normal' else 'STOP CW'
-        ToggleButton:
-            id: rotccw
-            text: 'START CCW' if self.state == 'normal' else 'STOP CCW'
-    BoxLayout:
-        orientation: 'horizontal'
-        JoystickPanel:
-            id: pad_left
-        JoystickPanel:
-            id: pad_right
+        orientation: 'vertical'
+        BoxLayout:
+            size_hint: 1, 0.2
+            orientation: 'horizontal'
+            Button:
+                id: quit
+                text: 'QUIT'
+            ToggleButton:
+                id: takeoff
+                text: 'TAKEOFF' if self.state == 'normal' else 'LAND'
+            ToggleButton:
+                id: rotcw
+                text: 'START CW' if self.state == 'normal' else 'STOP CW'
+            ToggleButton:
+                id: rotccw
+                text: 'START CCW' if self.state == 'normal' else 'STOP CCW'
+        BoxLayout:
+            orientation: 'horizontal'
+            JoystickPanel:
+                id: pad_left
+            JoystickPanel:
+                id: pad_right
 
-#KivyTelloRoot:
+# KivyTelloRoot:
