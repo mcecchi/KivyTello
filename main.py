@@ -1,3 +1,5 @@
+import sys
+import traceback
 import av
 import cv2
 import numpy
@@ -22,25 +24,32 @@ class FlaskApp(Perfume):
     @route('/video_feed')
     def video_feed(self):
         def generate():
-            container = av.open(self.drone.get_video_stream())
-            # skip first 300 frames
-            frame_skip = 300
-            while True:
-                for frame in container.decode(video=0):
-                    # print('Getting frame')
-                    if 0 < frame_skip:
-                        frame_skip = frame_skip - 1
-                        continue
-                    start_time = time.time()
-                    image = cv2.cvtColor(
-                        numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
-                    ret, jpeg = cv2.imencode('.jpg', image)
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' +
-                           jpeg.tobytes() +
-                           b'\r\n\r\n')
-                    frame_skip = int((time.time() -
-                                     start_time)/frame.time_base)
+            try:
+                container = av.open(self.drone.get_video_stream())
+                frame_skip = 300
+                while True:
+                    for frame in container.decode(video=0):
+                        if 0 < frame_skip:
+                            frame_skip = frame_skip - 1
+                            continue
+                        start_time = time.time()
+                        image = cv2.cvtColor(
+                            numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
+                        ret, jpeg = cv2.imencode('.jpg', image)
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' +
+                               jpeg.tobytes() +
+                               b'\r\n\r\n')
+                        frame_skip = int((time.time() -
+                                         start_time)/frame.time_base)
+            except Exception as ex:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback.print_exception(exc_type, exc_value, exc_traceback)
+                print(ex)
+            finally:
+                # drone.quit()
+                # cv2.destroyAllWindows()
+                pass
 
         return Response(generate(),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
@@ -48,7 +57,8 @@ class FlaskApp(Perfume):
 
 def start_flask_app(drone=None):
     print("Starting Flask app...")
-    FlaskApp(drone=drone).run(port=5000, debug=True, use_reloader=False)
+    FlaskApp(drone=drone).run(port=5000, debug=True,
+                              use_reloader=False, threaded=True)
 
 
 IDX_ROLL = 0
