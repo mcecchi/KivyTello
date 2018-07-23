@@ -37,10 +37,9 @@ class FlaskApp(Perfume):
     def video_feed(self):
         def generate():
             try:
+                face_cascade = cv2.CascadeClassifier(
+                    "haarcascade_frontalface_default.xml")
                 container = av.open(self.drone.get_video_stream())
-                if self.face_detect:
-                    faceCascade = cv2.CascadeClassifier(
-                        "haarcascade_frontalface_default.xml")
                 frame_skip = 300
                 while True:
                     for frame in container.decode(video=0):
@@ -52,7 +51,7 @@ class FlaskApp(Perfume):
                         color = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
                         if self.face_detect:
                             gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-                            faces = faceCascade.detectMultiScale(
+                            faces = face_cascade.detectMultiScale(
                                 gray,
                                 scaleFactor=1.1,
                                 minNeighbors=5,
@@ -76,7 +75,7 @@ class FlaskApp(Perfume):
             finally:
                 self.drone.quit()
                 # cv2.destroyAllWindows()
-                pass
+                App.get_running_app().stop()
 
         return Response(generate(),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
@@ -84,7 +83,7 @@ class FlaskApp(Perfume):
 
 def start_flask_app(flask_app=None):
     print("Starting Flask app...")
-    flask_app.run(port=5000, debug=True,
+    flask_app.run(port=30660, debug=True,
                   use_reloader=False, threaded=True)
 
 

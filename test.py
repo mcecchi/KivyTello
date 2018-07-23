@@ -29,7 +29,7 @@ class FlaskApp(Perfume):
 
 def start_flask_app(flask_app=None):
     print("Starting Flask app...")
-    flask_app.run(port=5000, debug=True,
+    flask_app.run(port=30660, debug=True,
                               use_reloader=False, threaded=True)
 
 
