@@ -20,12 +20,27 @@ class FlaskApp(Perfume):
     def __init__(self, drone=None, **kwargs):
         super(FlaskApp, self).__init__(**kwargs)
         self.drone = drone
+        self.face_detect = False
+
+    def __getattr__(self, name):
+        pass
+
+    @property
+    def face_detect(self):
+        return self.__face_detect
+
+    @face_detect.setter
+    def face_detect(self, val):
+        self.__face_detect = val
 
     @route('/video_feed')
     def video_feed(self):
         def generate():
             try:
                 container = av.open(self.drone.get_video_stream())
+                if self.face_detect:
+                    faceCascade = cv2.CascadeClassifier(
+                        "haarcascade_frontalface_default.xml")
                 frame_skip = 300
                 while True:
                     for frame in container.decode(video=0):
@@ -33,9 +48,21 @@ class FlaskApp(Perfume):
                             frame_skip = frame_skip - 1
                             continue
                         start_time = time.time()
-                        image = cv2.cvtColor(
-                            numpy.array(frame.to_image()), cv2.COLOR_RGB2BGR)
-                        ret, jpeg = cv2.imencode('.jpg', image)
+                        image = numpy.array(frame.to_image())
+                        color = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                        if self.face_detect:
+                            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+                            faces = faceCascade.detectMultiScale(
+                                gray,
+                                scaleFactor=1.1,
+                                minNeighbors=5,
+                                minSize=(30, 30),
+                                flags=cv2.CASCADE_SCALE_IMAGE
+                            )
+                            for (x, y, w, h) in faces:
+                                cv2.rectangle(
+                                    color, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                        ret, jpeg = cv2.imencode('.jpg', color)
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' +
                                jpeg.tobytes() +
@@ -47,7 +74,7 @@ class FlaskApp(Perfume):
                 traceback.print_exception(exc_type, exc_value, exc_traceback)
                 print(ex)
             finally:
-                # drone.quit()
+                self.drone.quit()
                 # cv2.destroyAllWindows()
                 pass
 
@@ -55,10 +82,10 @@ class FlaskApp(Perfume):
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
-def start_flask_app(drone=None):
+def start_flask_app(flask_app=None):
     print("Starting Flask app...")
-    FlaskApp(drone=drone).run(port=5000, debug=True,
-                              use_reloader=False, threaded=True)
+    flask_app.run(port=5000, debug=True,
+                  use_reloader=False, threaded=True)
 
 
 IDX_ROLL = 0
@@ -90,7 +117,7 @@ class DragableJoystick(Joystick):
 
 class KivyTelloRoot(FloatLayout):
 
-    def __init__(self, drone=None, **kwargs):
+    def __init__(self, drone=None, flask_app=None, **kwargs):
         super(KivyTelloRoot, self).__init__(**kwargs)
         self.stick_data = [0.0] * 4
         Window.allow_vkeyboard = False
@@ -99,20 +126,22 @@ class KivyTelloRoot(FloatLayout):
         self.ids.takeoff.bind(state=self.on_state_takeoff)
         self.ids.rotcw.bind(state=self.on_state_rotcw)
         self.ids.rotccw.bind(state=self.on_state_rotccw)
+        self.ids.facedetect.bind(state=self.on_state_facedetect)
         self.ids.quit.bind(on_press=lambda x: self.stop())
         self.drone = drone
+        self.flask_app = flask_app
         # self.drone.subscribe(self.drone.EVENT_FLIGHT_DATA, self.handler)
         # self.drone.start_video()
         # self.drone.subscribe(self.drone.EVENT_VIDEO_FRAME, self.handler)
 
-    def handler(self, event, sender, data, **args):
-        drone = sender
-        if event is self.drone.EVENT_FLIGHT_DATA:
-            print(data)
-        # elif event is self.drone.EVENT_VIDEO_FRAME:
-            # pass
-        # else:
-            # print(('event="%s" data=%s' % (event.getname(), str(data))))
+    # def handler(self, event, sender, data, **args):
+        # drone = sender
+        # if event is self.drone.EVENT_FLIGHT_DATA:
+        #     print(data)
+        # # elif event is self.drone.EVENT_VIDEO_FRAME:
+        # #     pass
+        # # else:
+        # #     rint(('event="%s" data=%s' % (event.getname(), str(data))))
 
     def on_state_takeoff(self, instance, value):
         if value == 'down':
@@ -138,14 +167,22 @@ class KivyTelloRoot(FloatLayout):
             print('stop ccw')
             self.drone.counter_clockwise(0)
 
+    def on_state_facedetect(self, instance, value):
+        if value == 'down':
+            print('start fd')
+            self.flask_app.face_detect = True
+        else:
+            print('stop fd')
+            self.flask_app.face_detect = False
+
     def on_pad_left(self, instance, value):
         x, y = value
         self.stick_data[IDX_YAW] = x
         self.stick_data[IDX_THR] = y
-        self.ids.pad_left.ids.label.text = \
-            'THR: {0:f}\n' \
-            'YAW: {1:f}'.format(self.stick_data[IDX_THR],
-                                self.stick_data[IDX_YAW])
+        # self.ids.pad_left.ids.label.text = \
+        #     'THR: {0:f}\n' \
+        #     'YAW: {1:f}'.format(self.stick_data[IDX_THR],
+        #                         self.stick_data[IDX_YAW])
         self.drone.set_throttle(self.stick_data[IDX_THR])
         self.drone.set_yaw(self.stick_data[IDX_YAW])
 
@@ -153,10 +190,10 @@ class KivyTelloRoot(FloatLayout):
         x, y = value
         self.stick_data[IDX_ROLL] = x
         self.stick_data[IDX_PITCH] = y
-        self.ids.pad_right.ids.label.text = \
-            'ROLL: {0:f}\n' \
-            'PITCH: {1:f}'.format(self.stick_data[IDX_ROLL],
-                                  self.stick_data[IDX_PITCH])
+        # self.ids.pad_right.ids.label.text = \
+        #     'ROLL: {0:f}\n' \
+        #     'PITCH: {1:f}'.format(self.stick_data[IDX_ROLL],
+        #                           self.stick_data[IDX_PITCH])
         self.drone.set_roll(self.stick_data[IDX_ROLL])
         self.drone.set_pitch(self.stick_data[IDX_PITCH])
 
@@ -166,12 +203,13 @@ class KivyTelloRoot(FloatLayout):
 
 
 class KivyTelloApp(App):
-    def __init__(self, drone=None, **kwargs):
+    def __init__(self, drone=None, flask_app=None, **kwargs):
         super(KivyTelloApp, self).__init__(**kwargs)
         self.drone = drone
+        self.flask_app = flask_app
 
     def build(self):
-        return KivyTelloRoot(drone=self.drone)
+        return KivyTelloRoot(drone=self.drone, flask_app=self.flask_app)
 
     def on_pause(self):
         return True
@@ -185,10 +223,11 @@ if __name__ in ('__main__', '__android__'):
     try:
         drone.connect()
         drone.wait_for_connection(60.0)
-        t = Thread(target=start_flask_app, args=(drone,))
+        flask_app = FlaskApp(drone=drone)
+        t = Thread(target=start_flask_app, args=(flask_app,))
         t.setDaemon(True)
         t.start()
-        KivyTelloApp(drone=drone).run()
+        KivyTelloApp(drone=drone, flask_app=flask_app).run()
     except Exception as ex:
         print(ex)
         drone.quit()
