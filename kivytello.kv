@@ -1,37 +1,68 @@
 #: import Joystick joystick
 
+<Button,ToggleButton>:
+    background_color: 0.0, 0.0, 0.0, 0.2
+
 <DragableJoystick>
+
+<CoverVideo>
 
 <JoystickPanel@BoxLayout>
     orientation: 'vertical'
-    Label:
-        id: label
+    size_hint_x: 0.3
+#    Label:
+#        id: label
     DragableJoystick:
         id: stick
+        size_hint_y: None
+        height: self.width
         sticky: False
+        outer_size: 1.0
+        inner_size: 1.0
+        pad_size: 0.3
+        outer_background_color: (0.0, 0.0, 0.0, 0.1)
+        outer_line_color:       (1.0, 1.0, 1.0, 1.0)
+        inner_background_color: (0.0, 0.0, 0.0, 0.1)
+        inner_line_color:       (1.0, 1.0, 1.0, 1.0)
+        pad_background_color:   (0.0, 0.0, 0.0, 0.1)
+        pad_line_color:         (1.0, 1.0, 1.0, 1.0)
+        outer_line_width: 0.005
+        inner_line_width: 0.005
+        pad_line_width: 0.005
 
 <KivyTelloRoot>:
-    orientation: 'vertical'
+    CoverVideo:
+        source: 'http://127.0.0.1:30660/video_feed'
+        state: 'play'
+        #allow_stretch: True
+        options: {'eos': 'loop'}
     BoxLayout:
-        size_hint: 1, 0.2
-        orientation: 'horizontal'
-        Button:
-            id: quit
-            text: 'QUIT'
-        ToggleButton:
-            id: takeoff
-            text: 'TAKEOFF' if self.state == 'normal' else 'LAND'
-        ToggleButton:
-            id: rotcw
-            text: 'START CW' if self.state == 'normal' else 'STOP CW'
-        ToggleButton:
-            id: rotccw
-            text: 'START CCW' if self.state == 'normal' else 'STOP CCW'
-    BoxLayout:
-        orientation: 'horizontal'
-        JoystickPanel:
-            id: pad_left
-        JoystickPanel:
-            id: pad_right
+        orientation: 'vertical'
+        BoxLayout:
+            size_hint: 1, 0.1
+            orientation: 'horizontal'
+            Button:
+                id: quit
+                text: 'QUIT'
+            ToggleButton:
+                id: takeoff
+                text: 'TAKEOFF' if self.state == 'normal' else 'LAND'
+            ToggleButton:
+                id: rotcw
+                text: 'START CW' if self.state == 'normal' else 'STOP CW'
+            ToggleButton:
+                id: rotccw
+                text: 'START CCW' if self.state == 'normal' else 'STOP CCW'
+            ToggleButton:
+                id: facedetect
+                text: 'START FD' if self.state == 'normal' else 'STOP FD'
+        BoxLayout:
+            orientation: 'horizontal'
+            JoystickPanel:
+                id: pad_left
+            Widget:
+                size_hint_x: 0.4
+            JoystickPanel:
+                id: pad_right
 
-#KivyTelloRoot:
+# KivyTelloRoot:
